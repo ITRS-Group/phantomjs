@@ -26,7 +26,8 @@ HEADERS += csconverter.h \
     encoding.h \
     config.h \
     repl.h \
-    replcompletable.h
+    replcompletable.h \
+    EUEMProxy.h
 
 SOURCES += phantom.cpp \
     callback.cpp \
@@ -44,7 +45,8 @@ SOURCES += phantom.cpp \
     encoding.cpp \
     config.cpp \
     repl.cpp \
-    replcompletable.cpp
+    replcompletable.cpp \
+    EUEMProxy.cpp
 
 OTHER_FILES += usage.txt \
     bootstrap.js \

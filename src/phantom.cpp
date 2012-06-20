@@ -45,6 +45,8 @@
 #include "system.h"
 #include "callback.h"
 
+#include "EUEMProxy.h"
+
 
 // public:
 Phantom::Phantom(QObject *parent)
@@ -83,7 +85,18 @@ Phantom::Phantom(QObject *parent)
     m_page = new WebPage(this, &m_config, QUrl::fromLocalFile(m_config.scriptFile()));
     m_pages.append(m_page);
 
-    if (m_config.proxyHost().isEmpty()) {
+    if (!m_config.proxyAutoConfig().isEmpty())
+    {
+        EUEMProxyFactory* pf(new EUEMProxyFactory());
+        pf->setProxyAutoConfig(m_config.proxyAutoConfig());
+        if(!m_config.proxyAuthUser().isEmpty() && !m_config.proxyAuthPass().isEmpty()) 
+        {
+            pf->setUser(m_config.proxyAuthUser());
+            pf->setPassword(m_config.proxyAuthPass());
+        }
+        QNetworkProxyFactory::setApplicationProxyFactory(pf);
+    }
+    else if (m_config.proxyHost().isEmpty()) {
         QNetworkProxyFactory::setUseSystemConfiguration(true);
     } else {
         QString proxyType = m_config.proxyType();

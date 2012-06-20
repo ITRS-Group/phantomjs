@@ -51,6 +51,7 @@ class Config: QObject
     Q_PROPERTY(bool webSecurityEnabled READ webSecurityEnabled WRITE setWebSecurityEnabled)
     Q_PROPERTY(QString offlineStoragePath READ offlineStoragePath WRITE setOfflineStoragePath)
     Q_PROPERTY(int offlineStorageDefaultQuota READ offlineStorageDefaultQuota WRITE setOfflineStorageDefaultQuota)
+    Q_PROPERTY(QString proxyAutoConfig READ proxyAutoConfig WRITE setProxyAutoConfig)
 
 public:
     Config(QObject *parent = 0);
@@ -131,6 +132,9 @@ public:
     bool helpFlag() const;
     void setHelpFlag(const bool value);
 
+    QString proxyAutoConfig() const;
+    void setProxyAutoConfig(const QString &value);
+
 private:
     void resetToDefaults();
     void setProxyHost(const QString &value);
@@ -164,6 +168,7 @@ private:
     bool m_remoteDebugAutorun;
     bool m_webSecurityEnabled;
     bool m_helpFlag;
+    QString m_proxyAutoConfig;
 };
 
 #endif // CONFIG_H

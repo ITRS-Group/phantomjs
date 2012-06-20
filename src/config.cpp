@@ -160,6 +160,10 @@ void Config::processArgs(const QStringList &args)
             setWebSecurityEnabled(false);
             continue;
         }
+        if (arg.startsWith("--pac=")) {
+            setProxyAutoConfig(arg.mid(6).trimmed());
+            continue;
+        }
         if (arg.startsWith("--")) {
             setUnknownOption(QString("Unknown option '%1'").arg(arg));
             return;
@@ -532,3 +536,14 @@ void Config::setHelpFlag(const bool value)
 {
     m_helpFlag = value;
 }
+
+void Config::setProxyAutoConfig(const QString& value)
+{
+    m_proxyAutoConfig = value;
+}
+
+QString Config::proxyAutoConfig() const
+{
+    return m_proxyAutoConfig;
+}
+
