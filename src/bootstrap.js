@@ -60,60 +60,38 @@ phantom.__defineErrorSetter__ = function(obj, page) {
 
     obj.__defineSetter__('onError', function(f) {
         if (handler && typeof handler === 'function') {
-            try { signal.disconnect(handler) } catch (e) {}
+            try { signal.disconnect(handler); }
+            catch (e) {}
         }
 
         if (typeof f === 'function') {
-            handler = function() {
-              if (page === phantom.page) {
-                  var error = window.__exception;
-              } else {
-                  var error = page.evaluate(function() {
-                      var orig = window.__exception;
+            handler = function(message, stack) {
+              stack = JSON.parse(stack).map(function(item) {
+                  return { file: item.url, line: item.lineNumber, function: item.functionName }
+              });
 
-                      if (typeof orig === 'object') {
-                          return {
-                              line:      orig.line,
-                              message:   orig.message,
-                              name:      orig.name,
-                              sourceId:  orig.sourceId,
-                              sourceURL: orig.sourceURL,
-                              stack:     orig.stack
-                          }
-                      } else {
-                          return orig
-                      }
-                  });
-
-                  if (typeof error === 'object') {
-                      error.toString = function() { return this.name + ": " + this.message };
-                  }
-              }
-
-              // The error.stack is passed for backwards compat, but it considered deprecated.
-              f(error, error.stack);
+              f(message, stack);
             };
             signal.connect(handler);
         } else {
             handler = null;
         }
-    })
-}
+    });
+};
 
 phantom.__defineErrorSetter__(phantom, phantom.page);
 
 // TODO: Make this output to STDERR
-phantom.defaultErrorHandler = function(error) {
-    console.log(error + "\n");
+phantom.defaultErrorHandler = function(message, stack) {
+    console.log(message + "\n");
 
-    if (error.stack) {
-        error.stack.forEach(function(item) {
-            var message = item.sourceURL + ":" + item.line;
-            if (item.function) message += " in " + item.function
-            console.log("  " + message);
-        })
-    }
-}
+    stack.forEach(function(item) {
+        var message = item.file + ":" + item.line;
+        if (item.function)
+            message += " in " + item.function;
+        console.log("  " + message);
+    });
+};
 
 phantom.callback = function(callback) {
     var ret = phantom.createCallback();
@@ -122,7 +100,7 @@ phantom.callback = function(callback) {
         ret.returnValue = retVal;
     });
     return ret;
-}
+};
 
 phantom.onError = phantom.defaultErrorHandler;
 

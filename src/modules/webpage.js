@@ -117,6 +117,10 @@ exports.create = function (opts) {
 
     defineSetter("onLoadFinished", "loadFinished");
 
+    defineSetter("onUrlChanged", "urlChanged");
+
+    defineSetter("onNavigationRequested", "navigationRequested");
+
     defineSetter("onResourceRequested", "resourceRequested");
 
     defineSetter("onResourceReceived", "resourceReceived");
@@ -209,12 +213,78 @@ exports.create = function (opts) {
         }
         str = str.replace(/,$/, '') + '); }';
         return this.evaluateJavaScript(str);
-    }
+    };
+
+    /**
+     * evaluate a function in the page, asynchronously
+     * NOTE: it won't return anything: the execution is asynchronous respect to the call.
+     * NOTE: the execution stack starts from within the page object
+     * @param   {function}  func    the function to evaluate
+     * @param   {number}    timeMs  time to wait before execution
+     * @param   {...}       args    function arguments
+     */
+    page.evaluateAsync = function (func, timeMs, args) {
+        var args = Array.prototype.splice.call(arguments, 0);
+
+        if (!(func instanceof Function || typeof func === 'string' || func instanceof String)) {
+            throw "Wrong use of WebPage#evaluateAsync";
+        }
+        // Wrapping the "func" argument into a setTimeout
+        args.splice(0, 0, "function() { setTimeout(" + func.toString() + ", " + timeMs + "); }");
+
+        this.evaluate.apply(this, args);
+    };
+
+    /**
+     * get cookies of the page
+     */
+    page.__defineGetter__("cookies", function() {
+        return this.cookies;
+    });
+
+    /**
+     * set cookies of the page
+     * @param	[]{...} cookies	an array of cookies object with arguments in mozilla cookie format
+     * 			cookies[0] = {
+     *				'name' => 'Cookie-Name',
+     *				'value' => 'Cookie-Value',
+     *				'domain' => 'foo.com',
+     *				'path' => 'Cookie-Path',
+     *				'expires' => 'Cookie-Expiration-Date',
+     *				'httponly' => true | false,
+     *				'secure' => true | false
+     * 			};
+     */
+    page.__defineSetter__("cookies", function(cookies) {
+        this.setCookies(cookies);
+    });
 
     // Copy options into page
     if (opts) {
         page = copyInto(page, opts);
     }
+
+    function defineSetterCallback(handlerName, callbackConstructor) {
+        page.__defineSetter__(handlerName, function(f) {
+            var callbackObj = page[callbackConstructor]();
+
+            callbackObj.called.connect(function() {
+                // Callback will receive a "deserialized", normal "arguments" array
+                callbackObj.returnValue = f.apply(this, arguments[0]);
+            });
+        });
+    }
+
+    // Calls from within the page to "phantomCallback()" arrive to this handler
+    defineSetterCallback("onCallback", "_getGenericCallback");
+
+    // Calls from within the page to "window.confirm(message)" arrive to this handler
+    // @see https://developer.mozilla.org/en/DOM/window.confirm
+    defineSetterCallback("onConfirm", "_getJsConfirmCallback");
+
+    // Calls from within the page to "window.prompt(message, defaultValue)" arrive to this handler
+    // @see https://developer.mozilla.org/en/DOM/window.prompt
+    defineSetterCallback("onPrompt", "_getJsPromptCallback");
 
     return page;
 };

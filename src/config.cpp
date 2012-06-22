@@ -160,6 +160,14 @@ void Config::processArgs(const QStringList &args)
             setWebSecurityEnabled(false);
             continue;
         }
+        if (arg == "--debug=yes") {
+            setPrintDebugMessages(true);
+            continue;
+        }
+        if (arg == "--debug=no") {
+            setPrintDebugMessages(false);
+            continue;
+        }
         if (arg.startsWith("--pac=")) {
             setProxyAutoConfig(arg.mid(6).trimmed());
             continue;
@@ -505,6 +513,7 @@ void Config::resetToDefaults()
     m_remoteDebugAutorun = false;
     m_webSecurityEnabled = true;
     m_helpFlag = false;
+    m_printDebugMessages = false;
 }
 
 void Config::setProxyAuthPass(const QString &value)
@@ -535,6 +544,16 @@ bool Config::helpFlag() const
 void Config::setHelpFlag(const bool value)
 {
     m_helpFlag = value;
+}
+
+bool Config::printDebugMessages() const
+{
+    return m_printDebugMessages;
+}
+
+void Config::setPrintDebugMessages(const bool value)
+{
+    m_printDebugMessages = value;
 }
 
 void Config::setProxyAutoConfig(const QString& value)

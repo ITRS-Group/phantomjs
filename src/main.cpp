@@ -35,10 +35,13 @@
 #ifdef Q_OS_LINUX
 #include "client/linux/handler/exception_handler.h"
 #endif
+#ifdef Q_OS_MAC
+#include "client/mac/handler/exception_handler.h"
+#endif
 
 #include <QApplication>
 
-#if QT_VERSION != QT_VERSION_CHECK(4, 8, 0)
+#if QT_VERSION != QT_VERSION_CHECK(4, 8, 2)
 #error Something is wrong with the setup. Please report to the mailing list!
 #endif
 
@@ -47,11 +50,16 @@ int main(int argc, char** argv, const char** envp)
 #ifdef Q_OS_LINUX
     google_breakpad::ExceptionHandler eh("/tmp", NULL, Utils::exceptionHandler, NULL, true);
 #endif
-
-    // Registering an alternative Message Handler
-    qInstallMsgHandler(Utils::messageHandler);
+#ifdef Q_OS_MAC
+    google_breakpad::ExceptionHandler eh("/tmp", NULL, Utils::exceptionHandler, NULL, true, NULL);
+#endif
 
     QApplication app(argc, argv);
+    Phantom phantom;
+
+    // Registering an alternative Message Handler
+    Utils::printDebugMessages = phantom.printDebugMessages();
+    qInstallMsgHandler(Utils::messageHandler);
 
 #ifdef STATIC_BUILD
     Q_INIT_RESOURCE(WebKit);
@@ -66,7 +74,7 @@ int main(int argc, char** argv, const char** envp)
 
     Env::instance()->parse(envp);
 
-    Phantom phantom;
+    phantom.init();
     if (phantom.execute()) {
         app.exec();
     }
