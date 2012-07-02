@@ -53,6 +53,7 @@ class Config: QObject
     Q_PROPERTY(int offlineStorageDefaultQuota READ offlineStorageDefaultQuota WRITE setOfflineStorageDefaultQuota)
     Q_PROPERTY(bool printDebugMessages READ printDebugMessages WRITE setPrintDebugMessages)
     Q_PROPERTY(QString proxyAutoConfig READ proxyAutoConfig WRITE setProxyAutoConfig)
+    Q_PROPERTY(QString certAuthoritiesPath READ certAuthoritiesPath WRITE setCertAuthoritiesPath)
 
 public:
     Config(QObject *parent = 0);
@@ -139,6 +140,9 @@ public:
     QString proxyAutoConfig() const;
     void setProxyAutoConfig(const QString &value);
 
+    QString certAuthoritiesPath() const;
+    void setCertAuthoritiesPath(const QString &dirPath);      
+
 private:
     void resetToDefaults();
     void setProxyHost(const QString &value);
@@ -174,6 +178,7 @@ private:
     bool m_helpFlag;
     bool m_printDebugMessages;
     QString m_proxyAutoConfig;
+    QString m_certAuthoritesPath;
 };
 
 #endif // CONFIG_H

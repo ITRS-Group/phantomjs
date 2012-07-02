@@ -34,6 +34,9 @@
 #include <QWebPage>
 #include <QWebFrame>
 #include <QNetworkProxy>
+#include <QtNetwork/QSslConfiguration>
+#include <QtNetwork/QSslSocket>
+#include <QtNetwork/QSslError>
 
 #include "terminal.h"
 #include "utils.h"
@@ -170,6 +173,11 @@ void Config::processArgs(const QStringList &args)
         }
         if (arg.startsWith("--pac=")) {
             setProxyAutoConfig(arg.mid(6).trimmed());
+            continue;
+        }
+        if (arg.startsWith("--cert-authorities-path=")) {
+            QString caPath = arg.mid(26).trimmed();
+            setCertAuthoritiesPath(caPath);
             continue;
         }
         if (arg.startsWith("--")) {
@@ -564,5 +572,28 @@ void Config::setProxyAutoConfig(const QString& value)
 QString Config::proxyAutoConfig() const
 {
     return m_proxyAutoConfig;
+}
+
+QString Config::certAuthoritiesPath() const
+{
+    return m_certAuthoritesPath;
+}
+
+void Config::setCertAuthoritiesPath(const QString &dirPath)
+{
+    m_certAuthoritesPath = dirPath;
+    QList<QSslCertificate> cacerts;
+    QDir dir(m_certAuthoritesPath);
+
+    if (dir.exists()) 
+    {
+       QDir::Filters dirFilter = QDir::NoDotAndDotDot | QDir::System | QDir::Hidden | QDir::AllDirs | QDir::Files;
+       foreach(QFileInfo info, dir.entryInfoList(dirFilter, QDir::DirsFirst)) 
+       {
+           cacerts += QSslCertificate::fromPath(info.absoluteFilePath());
+       }
+    }
+
+    QSslSocket::setDefaultCaCertificates(cacerts);
 }
 
