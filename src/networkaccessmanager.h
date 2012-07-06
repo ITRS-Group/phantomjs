@@ -66,6 +66,7 @@ private slots:
     void handleStarted();
     void handleFinished(QNetworkReply *reply);
     void provideAuthentication(QNetworkReply *reply, QAuthenticator *authenticator);
+    void handleSslErrors(QNetworkReply* reply, const QList<QSslError> &errors);
 
 private:
     QHash<QNetworkReply*, int> m_ids;

@@ -34,6 +34,7 @@
 #include <QNetworkDiskCache>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSslError>
 
 #include "config.h"
 #include "cookiejar.h"
@@ -86,6 +87,7 @@ NetworkAccessManager::NetworkAccessManager(QObject *parent, const Config *config
 
     connect(this, SIGNAL(authenticationRequired(QNetworkReply*,QAuthenticator*)), SLOT(provideAuthentication(QNetworkReply*,QAuthenticator*)));
     connect(this, SIGNAL(finished(QNetworkReply*)), SLOT(handleFinished(QNetworkReply*)));
+    connect(this, SIGNAL(sslErrors(QNetworkReply*, const QList<QSslError> &)), SLOT(handleSslErrors(QNetworkReply*, const QList<QSslError> &)));
 }
 
 void NetworkAccessManager::setUserName(const QString &userName)
@@ -257,3 +259,23 @@ void NetworkAccessManager::provideAuthentication(QNetworkReply *reply, QAuthenti
     authenticator->setUser(m_userName);
     authenticator->setPassword(m_password);
 }
+
+// [euem] emits ssl errors when encountered
+void NetworkAccessManager::handleSslErrors(QNetworkReply* reply, const QList<QSslError> &errors)
+{
+    QVariantList sslErrors;
+    foreach (QSslError e, errors)
+    {
+        sslErrors += e.errorString();
+    }
+    
+    QVariantMap data;
+    data["stage"] = "ssl_error";
+    data["id"] = m_ids.value(reply);
+    data["url"] = reply->url().toEncoded().data();
+    data["time"] = QDateTime::currentDateTime();
+    data["errors"] = sslErrors;
+
+    emit resourceReceived(data);
+}
+
