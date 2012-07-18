@@ -18,31 +18,25 @@ if [[ ! -f ../bin/phantomjs ]]; then
     exit 1
 fi
 
+if [[ "$1" = "--bundle-libs" ]]; then
+    bundle_libs=1
+else
+    bundle_libs=0
+fi
+
 version=$(../bin/phantomjs --version | sed 's/ /-/' | sed 's/[()]//g')
 src=..
 
 echo "packaging phantomjs $version"
 
 if [[ $OSTYPE = darwin* ]]; then
-    dest="phantomjs-$version-macosx-static"
+    dest="phantomjs-$version-macosx"
 else
-    if [[ ! -f brandelf ]]; then
-        echo
-        echo "brandelf executable not found in current dir"
-        echo -n "compiling it now..."
-        g++ brandelf.c -o brandelf || exit 1
-        echo "done"
-    fi
-
-    dest="phantomjs-$version-linux-$(uname -m)-dynamic"
+    dest="phantomjs-$version-linux-$(uname -m)"
 fi
 
 rm -Rf $dest{.tar.bz2,} &> /dev/null
 mkdir -p $dest/bin
-
-if [[ $OSTYPE != darwin* ]]; then
-    mkdir -p $dest/lib
-fi
 
 echo
 
@@ -52,18 +46,28 @@ cp -r $src/{ChangeLog,examples,LICENSE.BSD,README.md} $dest/
 echo "done"
 echo
 
-if [[ $OSTYPE == darwin* ]]; then
-    echo -n "compressing binary..."
-    [ ! -z upx ] && upx -qqq -9 $dest/bin/phantomjs
-    echo "done"
-    echo
-else
+phantomjs=$dest/bin/phantomjs
+
+if [[ "$bundle_libs" = "1" ]]; then
+    mkdir -p $dest/lib
+
+    if [[ ! -f brandelf ]]; then
+        echo
+        echo "brandelf executable not found in current dir"
+        echo -n "compiling it now..."
+        g++ brandelf.c -o brandelf || exit 1
+        echo "done"
+    fi
+
+    libs=$(ldd $phantomjs | egrep -o "/[^ ]+ ")
+
     echo -n "copying shared libs..."
     libld=
-    for l in $(ldd $dest/bin/phantomjs | egrep -o "/[^ ]+ "); do
-        if [[ "$l" != "" ]]; then
-            ll=$(basename $l)
-            cp $l $dest/lib/$ll
+    for l in $libs; do
+        ll=$(basename $l)
+        cp $l $dest/lib/$ll
+
+        if [[ "$bundle_libs" = "1" ]]; then
             # ensure OS ABI compatibility
             ./brandelf -t SVR4 $dest/lib/$ll
             if [[ "$l" == *"ld-linux"* ]]; then
@@ -73,24 +77,10 @@ else
     done
     echo "done"
     echo
-fi
 
-# strip to reduce file size
-echo -n "stripping binary and libs..."
-
-if [[ $OSTYPE = darwin* ]]; then
-    strip -x $dest/bin/*
-else
-    strip -s $dest/lib/*  $dest/bin/*
-fi
-
-echo "done"
-echo
-
-if [[ $OSTYPE != darwin* ]]; then
     echo -n "writing run script..."
-    # write run scripts
-    mv $dest/bin/phantomjs $dest/bin/phantomjs.bin
+    mv $phantomjs $phantomjs.bin
+    phantomjs=$phantomjs.bin
     run=$dest/bin/phantomjs
     echo '#!/bin/sh' >> $run
     echo 'path=$(dirname $(dirname $(readlink -f $0)))' >> $run
@@ -101,9 +91,30 @@ if [[ $OSTYPE != darwin* ]]; then
     echo
 fi
 
-echo -n "creating tarball..."
-tar -cjf $dest{.tar.bz2,}
+echo -n "stripping binary and libs..."
+if [[ $OSTYPE = darwin* ]]; then
+    strip -x $phantomjs
+else
+    strip -s $phantomjs
+    [[ -d $dest/lib ]] && strip -s $dest/lib/*
+fi
 echo "done"
 echo
 
-echo "you can now deploy $dest or $dest.tar.bz2"
+echo -n "compressing binary..."
+if [[ ! -z upx ]]; then
+    upx -qqq -9 $phantomjs
+    echo "done"
+else
+    echo "upx not found"
+fi
+echo
+
+echo -n "creating archive..."
+if [[ $OSTYPE = darwin* ]]; then
+    zip -r $dest.zip $dest
+else
+    tar -cjf $dest{.tar.bz2,}
+fi
+echo "done"
+echo

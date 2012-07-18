@@ -54,6 +54,8 @@ class Config: QObject
     Q_PROPERTY(bool printDebugMessages READ printDebugMessages WRITE setPrintDebugMessages)
     Q_PROPERTY(QString proxyAutoConfig READ proxyAutoConfig WRITE setProxyAutoConfig)
     Q_PROPERTY(QString certAuthoritiesPath READ certAuthoritiesPath WRITE setCertAuthoritiesPath)
+    Q_PROPERTY(bool javascriptCanOpenWindows READ javascriptCanOpenWindows WRITE setJavascriptCanOpenWindows)
+    Q_PROPERTY(bool javascriptCanCloseWindows READ javascriptCanCloseWindows WRITE setJavascriptCanCloseWindows)
 
 public:
     Config(QObject *parent = 0);
@@ -142,6 +144,12 @@ public:
 
     QString certAuthoritiesPath() const;
     void setCertAuthoritiesPath(const QString &dirPath);      
+    
+    void setJavascriptCanOpenWindows(const bool value);
+    bool javascriptCanOpenWindows() const;
+
+    void setJavascriptCanCloseWindows(const bool value);
+    bool javascriptCanCloseWindows() const;
 
 private:
     void resetToDefaults();
@@ -179,6 +187,8 @@ private:
     bool m_printDebugMessages;
     QString m_proxyAutoConfig;
     QString m_certAuthoritesPath;
+    bool m_javascriptCanOpenWindows;
+    bool m_javascriptCanCloseWindows;
 };
 
 #endif // CONFIG_H
