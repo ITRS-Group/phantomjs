@@ -176,7 +176,7 @@ void Config::processArgs(const QStringList &args)
             continue;
         }
         if (arg.startsWith("--cert-authorities-path=")) {
-            QString caPath = arg.mid(26).trimmed();
+            QString caPath = arg.mid(24).trimmed();
             setCertAuthoritiesPath(caPath);
             continue;
         }
