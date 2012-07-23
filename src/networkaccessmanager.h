@@ -36,6 +36,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QSet>
+#include <QSslConfiguration>
 
 class Config;
 class QNetworkDiskCache;
@@ -75,6 +76,7 @@ private:
     QNetworkDiskCache* m_networkDiskCache;
     QVariantMap m_customHeaders;
     QVariantList m_cookies;
+    QSslConfiguration m_sslConfiguration;
 };
 
 #endif // NETWORKACCESSMANAGER_H

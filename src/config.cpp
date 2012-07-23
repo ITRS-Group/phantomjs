@@ -176,8 +176,15 @@ void Config::processArgs(const QStringList &args)
             continue;
         }
         if (arg.startsWith("--cert-authorities-path=")) {
-            QString caPath = arg.mid(24).trimmed();
-            setCertAuthoritiesPath(caPath);
+            setCertAuthoritiesPath(arg.mid(24).trimmed());
+            continue;
+        }
+        if (arg.startsWith("--local-certificate-file=")) {
+            setLocalCertificateFile(arg.mid(25).trimmed());
+            continue;
+        }
+        if (arg.startsWith("--local-certificate-passphrase=")) {
+            setLocalCertificatePassPhrase(arg.mid(31).trimmed());
             continue;
         }
         if (arg.startsWith("--")) {
@@ -617,5 +624,25 @@ void Config::setCertAuthoritiesPath(const QString &dirPath)
     }
 
     QSslSocket::setDefaultCaCertificates(cacerts);
+}
+
+void Config::setLocalCertificateFile(const QString &value)
+{
+    m_localCertFile = value;
+}
+
+QString Config::localCertificateFile() const
+{
+    return m_localCertFile;
+}
+
+void Config::setLocalCertificatePassPhrase(const QString &value)
+{
+    m_localCertPassPhrase = value;
+}
+
+QString Config::localCertificatePassPhrase() const
+{
+    return m_localCertPassPhrase;
 }
 

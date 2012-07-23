@@ -56,6 +56,8 @@ class Config: QObject
     Q_PROPERTY(QString certAuthoritiesPath READ certAuthoritiesPath WRITE setCertAuthoritiesPath)
     Q_PROPERTY(bool javascriptCanOpenWindows READ javascriptCanOpenWindows WRITE setJavascriptCanOpenWindows)
     Q_PROPERTY(bool javascriptCanCloseWindows READ javascriptCanCloseWindows WRITE setJavascriptCanCloseWindows)
+    Q_PROPERTY(QString localCertificateFile READ localCertificateFile WRITE setLocalCertificateFile)
+    Q_PROPERTY(QString localCertificatePassPhrase READ localCertificatePassPhrase WRITE setLocalCertificatePassPhrase)
 
 public:
     Config(QObject *parent = 0);
@@ -151,6 +153,11 @@ public:
     void setJavascriptCanCloseWindows(const bool value);
     bool javascriptCanCloseWindows() const;
 
+    void setLocalCertificateFile(const QString &value);
+    QString localCertificateFile() const;
+    void setLocalCertificatePassPhrase(const QString &value);
+    QString localCertificatePassPhrase() const;
+
 private:
     void resetToDefaults();
     void setProxyHost(const QString &value);
@@ -189,6 +196,9 @@ private:
     QString m_certAuthoritesPath;
     bool m_javascriptCanOpenWindows;
     bool m_javascriptCanCloseWindows;
+    QString m_localCertFile;
+    QString m_localCertPassPhrase;
+
 };
 
 #endif // CONFIG_H

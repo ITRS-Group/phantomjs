@@ -27,6 +27,7 @@
   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+#include <QtCrypto>
 
 #include <QAuthenticator>
 #include <QDateTime>
@@ -35,10 +36,14 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSslError>
+#include <QSslKey>
+#include <QSslConfiguration>
+#include <QDebug>
 
 #include "config.h"
 #include "cookiejar.h"
 #include "networkaccessmanager.h"
+#include "terminal.h"
 
 static const char *toString(QNetworkAccessManager::Operation op)
 {
@@ -85,6 +90,36 @@ NetworkAccessManager::NetworkAccessManager(QObject *parent, const Config *config
         setCache(m_networkDiskCache);
     }
 
+    m_sslConfiguration = QSslConfiguration::defaultConfiguration();
+    m_sslConfiguration.setCaCertificates( QSslSocket::defaultCaCertificates() );
+   
+    if( !config->localCertificateFile().isEmpty() ){
+       QCA::ConvertResult convRes;
+       QCA::SecureArray passPhrase(config->localCertificatePassPhrase().toAscii());
+       QCA::KeyBundle kb = QCA::KeyBundle::fromFile(config->localCertificateFile(), passPhrase, &convRes);
+       if( kb.isNull() ) { 
+           // emit error in request
+       } else {
+           if ( convRes != QCA::ConvertGood ) {
+              // emit error
+           } else {
+              QCA::CertificateChain certChain = kb.certificateChain();
+              QCA::Certificate certFirst = certChain.primary();
+              QSslCertificate localCert = QSslCertificate( certFirst.toPEM().toAscii() );
+              if ( localCert.isValid() ) {
+                 m_sslConfiguration.setLocalCertificate( localCert );
+                 if( !kb.privateKey().isNull() ) {
+                    QSslKey privateKey(kb.privateKey().toPEM().toAscii(), QSsl::Rsa);
+	            m_sslConfiguration.setPrivateKey(privateKey);
+                    m_sslConfiguration.setProtocol(QSsl::SslV3);  
+		    m_sslConfiguration.setPeerVerifyMode(QSslSocket::VerifyPeer);
+                 }
+              } else {
+              }
+           }
+       }
+    }
+
     connect(this, SIGNAL(authenticationRequired(QNetworkReply*,QAuthenticator*)), SLOT(provideAuthentication(QNetworkReply*,QAuthenticator*)));
     connect(this, SIGNAL(finished(QNetworkReply*)), SLOT(handleFinished(QNetworkReply*)));
     connect(this, SIGNAL(sslErrors(QNetworkReply*, const QList<QSslError> &)), SLOT(handleSslErrors(QNetworkReply*, const QList<QSslError> &)));
@@ -124,7 +159,7 @@ QVariantList NetworkAccessManager::cookies() const
 QNetworkReply *NetworkAccessManager::createRequest(Operation op, const QNetworkRequest & request, QIODevice * outgoingData)
 {
     QNetworkRequest req(request);
-
+	
     // Get the URL string before calling the superclass. Seems to work around
     // segfaults in Qt 4.8: https://gist.github.com/1430393
     QByteArray url = req.url().toEncoded();
@@ -162,6 +197,9 @@ QNetworkReply *NetworkAccessManager::createRequest(Operation op, const QNetworkR
         QNetworkCookieJar* cookiejar = cookieJar();
         cookiejar->setCookiesFromUrl(cookieList, req.url());
     }
+    
+    // set SSL configuration
+    req.setSslConfiguration(m_sslConfiguration);
 
     // Pass duty to the superclass - Nothing special to do here (yet?)
     QNetworkReply *reply = QNetworkAccessManager::createRequest(op, req, outgoingData);

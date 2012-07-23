@@ -23,6 +23,8 @@ Options:
   --debug=[yes|no]                          Whether to print warnings and debug messages (default is 'no')
   --pac=http://url/proxy.pac                Sets the auto-config proxy url
   --cert-authorities-path=/path/to/ca-roots Loads CA Root certificates from the location specified   
+  --local-certificate-file=/path/pkcs.p12   Sets Personal Certificate File (PKCS 12 Format)
+  --local-certificate-passphrase=passphrase Sets the Personal Certificate Pass Phrase
   -v, --version                             Prints out PhantomJS version
   -h, --help                                Shows this message and quits
 

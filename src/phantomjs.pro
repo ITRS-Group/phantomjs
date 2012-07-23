@@ -58,6 +58,7 @@ OTHER_FILES += usage.txt \
 include(gif/gif.pri)
 include(mongoose/mongoose.pri)
 include(linenoise/linenoise.pri)
+include(qca/qca-2.0.3/app.pri)
 
 linux*|mac {
     INCLUDEPATH += breakpad/src

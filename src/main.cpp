@@ -40,6 +40,7 @@
 #endif
 
 #include <QApplication>
+#include <QtCrypto>
 
 #if QT_VERSION != QT_VERSION_CHECK(4, 8, 2)
 #error Something is wrong with the setup. Please report to the mailing list!
@@ -54,6 +55,8 @@ int main(int argc, char** argv, const char** envp)
 #ifdef Q_OS_MAC
     google_breakpad::ExceptionHandler eh("/tmp", NULL, Utils::exceptionHandler, NULL, true, NULL);
 #endif
+
+    QCA::Initializer init;
 
     QApplication app(argc, argv);
 
