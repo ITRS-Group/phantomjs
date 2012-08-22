@@ -6,7 +6,6 @@ QT_CFG=''
 QT_CFG+=' -opensource'          # Use the open-source license
 QT_CFG+=' -confirm-license'     # Silently acknowledge the license confirmation
 QT_CFG+=' -v'                   # Makes it easier to see what header dependencies are missing
-QT_CFG+=' -static'
 
 if [[ $OSTYPE = darwin* ]]; then
     QT_CFG+=' -arch x86'
