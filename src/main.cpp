@@ -42,6 +42,46 @@
 #include <QApplication>
 #include <QtCrypto>
 
+#ifdef Q_OS_WIN32
+using namespace google_breakpad;
+static google_breakpad::ExceptionHandler* eh;
+#if !defined(QT_SHARED) && !defined(QT_DLL)
+#include <QtPlugin>
+
+// HACK: When linking a static PhantomJS + MSVC agains the
+// static Qt included in PhantomJS, we get linker errors.
+// This noop function can cure them.
+#include <QUuid>
+#include <QPainter>
+#include <QXmlStreamAttributes>
+#include <QFileDialog>
+#include <QPainter>
+#include <QToolTip>
+#include <QStandardItem>
+void makeLinkerHappy()
+{
+    QWidget().colorCount();
+    QUuid().createUuid();
+    QPainter().drawImage(QPointF(), QImage(), QRect());
+    const QXmlStreamAttributes foo;
+    foo[0];
+    QFileDialog().getOpenFileName();
+    QPainter::staticMetaObject.indexOfMethod(0);
+    QToolTip::hideText();
+    QStandardItem standardItem;
+    standardItem.setForeground(QBrush());
+    standardItem.setBackground(QBrush());
+    standardItem.setToolTip(QString());
+}
+// End of linker hack.
+
+Q_IMPORT_PLUGIN(qcncodecs)
+Q_IMPORT_PLUGIN(qjpcodecs)
+Q_IMPORT_PLUGIN(qkrcodecs)
+Q_IMPORT_PLUGIN(qtwcodecs)
+#endif
+#endif
+
 #if QT_VERSION != QT_VERSION_CHECK(4, 8, 2)
 #error Something is wrong with the setup. Please report to the mailing list!
 #endif
@@ -56,6 +96,26 @@ int main(int argc, char** argv, const char** envp)
     google_breakpad::ExceptionHandler eh("/tmp", NULL, Utils::exceptionHandler, NULL, true, NULL);
 #endif
 
+#ifdef Q_OS_WIN32
+    // This is needed for CRT to not show dialog for invalid param
+    // failures and instead let the code handle it.
+    _CrtSetReportMode(_CRT_ASSERT, 0);
+
+    DWORD cbBuffer = ExpandEnvironmentStrings(TEXT("%TEMP%"), NULL, 0);
+
+    if (cbBuffer == 0) {
+        eh = new ExceptionHandler(TEXT("."), NULL, Utils::exceptionHandler, NULL, ExceptionHandler::HANDLER_ALL);
+	} else {
+        LPWSTR szBuffer = reinterpret_cast<LPWSTR>(malloc(sizeof(TCHAR) * (cbBuffer + 1)));
+        
+        if (ExpandEnvironmentStrings(TEXT("%TEMP%"), szBuffer, cbBuffer + 1) > 0) {
+            wstring lpDumpPath(szBuffer);
+            eh = new ExceptionHandler(lpDumpPath, NULL, Utils::exceptionHandler, NULL, ExceptionHandler::HANDLER_ALL);
+        }
+        free(szBuffer);
+    }
+#endif
+   
     QCA::Initializer init;
 
     QApplication app(argc, argv);

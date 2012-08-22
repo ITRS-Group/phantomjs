@@ -108,3 +108,19 @@ mac {
 # Uncomment to build a Mac OS X Universal Binary (i.e. x86 + ppc)
 #    CONFIG += x86 ppc
 }
+
+win32-msvc* {
+    LIBS += -lCrypt32
+    INCLUDEPATH += breakpad/src
+    SOURCES += breakpad/src/client/windows/handler/exception_handler.cc \
+      breakpad/src/client/windows/crash_generation/crash_generation_client.cc \
+      breakpad/src/common/windows/guid_string.cc
+    CONFIG(static) {
+        DEFINES += STATIC_BUILD
+        QTPLUGIN += \
+            qcncodecs \
+            qjpcodecs \
+            qkrcodecs \
+            qtwcodecs
+    }
+}
