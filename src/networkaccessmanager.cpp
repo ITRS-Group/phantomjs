@@ -99,9 +99,11 @@ NetworkAccessManager::NetworkAccessManager(QObject *parent, const Config *config
        QCA::KeyBundle kb = QCA::KeyBundle::fromFile(config->localCertificateFile(), passPhrase, &convRes);
        if( kb.isNull() ) { 
            // emit error in request
+           Terminal::instance()->cout("Cannot read certificate file: " + config->localCertificateFile());
        } else {
            if ( convRes != QCA::ConvertGood ) {
               // emit error
+              Terminal::instance()->cout("Invalid certificate file.");
            } else {
               QCA::CertificateChain certChain = kb.certificateChain();
               QCA::Certificate certFirst = certChain.primary();
@@ -115,7 +117,8 @@ NetworkAccessManager::NetworkAccessManager(QObject *parent, const Config *config
 		    m_sslConfiguration.setPeerVerifyMode(QSslSocket::VerifyPeer);
                  }
               } else {
-              }
+                  Terminal::instance()->cout("Personal certificate file is invalid.");
+	      }
            }
        }
     }

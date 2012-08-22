@@ -58,5 +58,9 @@ until [ -z "$1" ]; do
 done
 
 cd src/qt && ./preconfig.sh --jobs $COMPILE_JOBS --qt-config "$QT_CFG" && cd ../..
+
+# cd src/qca/qca-2.0.3 && ./configure && make && cd ..
+# cd qca--ossl-2.0.0 && ./configure && make && cd ../../..
+
 src/qt/bin/qmake $QMAKE_ARGS
 make -j$COMPILE_JOBS
