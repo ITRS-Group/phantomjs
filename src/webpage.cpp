@@ -61,6 +61,7 @@
 #include "config.h"
 #include "consts.h"
 #include "callback.h"
+#include "cookiejar.h"
 
 // Ensure we have at least head and body.
 #define BLANK_HTML                      "<html><head></head><body></body></html>"
@@ -170,6 +171,7 @@ protected:
             break;
         }
 
+        emit m_webPage->javaScriptConsoleMessageSent("URL Redirected -  Navigating To");
         emit m_webPage->navigationRequested(
                     request.url(),                   //< Requested URL
                     navigationType,                  //< Navigation Type
@@ -181,9 +183,16 @@ protected:
 
     QWebPage *createWindow (WebWindowType type) {
         Q_UNUSED(type);
+        WebPage *newPage;
 
         // Create a new "raw" WebPage object
-        WebPage *newPage = new WebPage(m_webPage);
+        if (m_webPage->ownsPages()) {
+            newPage = new WebPage(m_webPage);
+        } else {
+            newPage = new WebPage(Phantom::instance());
+            Phantom::instance()->m_pages.append(newPage);
+        }
+
         // Apply default settings
         newPage->applySettings(Phantom::instance()->defaultPageSettings());
 
@@ -264,11 +273,14 @@ WebPage::WebPage(QObject *parent, const QUrl &baseUrl)
     : REPLCompletable(parent)
     , m_callbacks(NULL)
     , m_navigationLocked(false)
+    , m_mousePos(QPoint(0, 0))
+    , m_ownsPages(true)
 {
     setObjectName("WebPage");
     m_customWebPage = new CustomPage(this);
     m_mainFrame = m_customWebPage->mainFrame();
     m_mainFrame->setHtml(BLANK_HTML, baseUrl);
+    changeCurrentFrame(m_mainFrame);
 
     Config *phantomCfg = Phantom::instance()->config();
 
@@ -277,7 +289,7 @@ WebPage::WebPage(QObject *parent, const QUrl &baseUrl)
     connect(m_mainFrame, SIGNAL(urlChanged(QUrl)), SIGNAL(urlChanged(QUrl)));
     connect(m_customWebPage, SIGNAL(loadStarted()), SIGNAL(loadStarted()), Qt::QueuedConnection);
     connect(m_customWebPage, SIGNAL(loadFinished(bool)), SLOT(finish(bool)), Qt::QueuedConnection);
-    connect(m_customWebPage, SIGNAL(windowCloseRequested()), this, SLOT(release()));
+    connect(m_customWebPage, SIGNAL(windowCloseRequested()), this, SLOT(close()));
 
     // Start with transparent background.
     QPalette palette = m_customWebPage->palette();
@@ -320,6 +332,11 @@ WebPage::WebPage(QObject *parent, const QUrl &baseUrl)
     m_customWebPage->setViewportSize(QSize(400, 300));
 }
 
+WebPage::~WebPage()
+{
+    emit closing(this);
+}
+
 QWebFrame *WebPage::mainFrame()
 {
     return m_mainFrame;
@@ -330,14 +347,39 @@ QString WebPage::content() const
     return m_mainFrame->toHtml();
 }
 
+QString WebPage::frameContent() const
+{
+    return m_currentFrame->toHtml();
+}
+
 void WebPage::setContent(const QString &content)
 {
     m_mainFrame->setHtml(content);
 }
 
+void WebPage::setFrameContent(const QString &content)
+{
+    m_currentFrame->setHtml(content);
+}
+
+QString WebPage::url() const
+{
+    return m_mainFrame->url().toString();
+}
+
+QString WebPage::frameUrl() const
+{
+    return m_currentFrame->url().toString();
+}
+
 QString WebPage::plainText() const
 {
     return m_mainFrame->toPlainText();
+}
+
+QString WebPage::framePlainText() const
+{
+    return m_currentFrame->toPlainText();
 }
 
 QString WebPage::libraryPath() const
@@ -410,7 +452,6 @@ bool WebPage::navigationLocked()
     return m_navigationLocked;
 }
 
-
 void WebPage::setViewportSize(const QVariantMap &size)
 {
     int w = size.value("width").toInt();
@@ -479,7 +520,7 @@ QVariantMap WebPage::paperSize() const
 QVariant WebPage::evaluateJavaScript(const QString &code)
 {
     QString function = "(" + code + ")()";
-    return m_customWebPage->currentFrame()->evaluateJavaScript(
+    return m_currentFrame->evaluateJavaScript(
                 function,
                 QString("phantomjs://webpage.evaluate()"));
 }
@@ -523,14 +564,36 @@ QVariantMap WebPage::customHeaders() const
     return m_networkAccessManager->customHeaders();
 }
 
-void WebPage::setCookies(const QVariantList &cookies)
+bool WebPage::setCookies(const QVariantList &cookies)
 {
-    m_networkAccessManager->setCookies(cookies);
+    // Delete all the cookies for this URL
+    CookieJar::instance()->deleteCookies(this->url());
+    // Add a new set of cookies foor this URL
+    return CookieJar::instance()->addCookiesFromMap(cookies, this->url());
 }
 
 QVariantList WebPage::cookies() const
 {
-    return m_networkAccessManager->cookies();
+    // Return all the Cookies visible to this Page, as a list of Maps (aka JSON in JS space)
+    return CookieJar::instance()->cookiesToMap(this->url());
+}
+
+bool WebPage::addCookie(const QVariantMap &cookie)
+{
+    return CookieJar::instance()->addCookieFromMap(cookie, this->url());
+}
+
+bool WebPage::deleteCookie(const QString &cookieName)
+{
+    if (!cookieName.isEmpty()) {
+        return CookieJar::instance()->deleteCookie(cookieName, this->url());
+    }
+    return false;
+}
+
+bool WebPage::clearCookies()
+{
+    return CookieJar::instance()->deleteCookies(this->url());
 }
 
 void WebPage::openUrl(const QString &address, const QVariant &op, const QVariantMap &settings)
@@ -597,6 +660,10 @@ void WebPage::openUrl(const QString &address, const QVariant &op, const QVariant
 
 void WebPage::release()
 {
+    close();
+}
+
+void WebPage::close() {
     deleteLater();
 }
 
@@ -654,7 +721,13 @@ QImage WebPage::renderImage()
     QSize viewportSize = m_customWebPage->viewportSize();
     m_customWebPage->setViewportSize(contentsSize);
 
-    QImage buffer(frameRect.size(), QImage::Format_ARGB32);
+#ifdef Q_OS_WIN32
+    QImage::Format format = QImage::Format_ARGB32_Premultiplied;
+#else
+    QImage::Format format = QImage::Format_ARGB32;
+#endif
+
+    QImage buffer(frameRect.size(), format);
     buffer.fill(qRgba(255, 255, 255, 0));
 
     QPainter painter;
@@ -668,7 +741,7 @@ QImage WebPage::renderImage()
     for (int x = 0; x < htiles; ++x) {
         for (int y = 0; y < vtiles; ++y) {
 
-            QImage tileBuffer(tileSize, tileSize, QImage::Format_ARGB32);
+            QImage tileBuffer(tileSize, tileSize, format);
             tileBuffer.fill(qRgba(255, 255, 255, 0));
 
             // Render the web page onto the small tile first
@@ -900,7 +973,7 @@ QString WebPage::footer(int page, int numPages)
 
 void WebPage::uploadFile(const QString &selector, const QString &fileName)
 {
-    QWebElement el = m_customWebPage->currentFrame()->findFirstElement(selector);
+    QWebElement el = m_currentFrame->findFirstElement(selector);
     if (el.isNull())
         return;
 
@@ -909,11 +982,11 @@ void WebPage::uploadFile(const QString &selector, const QString &fileName)
 }
 
 bool WebPage::injectJs(const QString &jsFilePath) {
-    return Utils::injectJsInFrame(jsFilePath, m_libraryPath, m_customWebPage->currentFrame());
+    return Utils::injectJsInFrame(jsFilePath, m_libraryPath, m_currentFrame);
 }
 
 void WebPage::_appendScriptElement(const QString &scriptUrl) {
-    m_customWebPage->currentFrame()->evaluateJavaScript(QString(JS_APPEND_SCRIPT_ELEMENT).arg(scriptUrl), scriptUrl);
+    m_currentFrame->evaluateJavaScript(QString(JS_APPEND_SCRIPT_ELEMENT).arg(scriptUrl), scriptUrl);
 }
 
 QObject *WebPage::_getGenericCallback() {
@@ -940,14 +1013,17 @@ QObject *WebPage::_getJsPromptCallback() {
     return m_callbacks->getJsPromptCallback();
 }
 
-void WebPage::sendEvent(const QString &type, const QVariant &arg1, const QVariant &arg2)
+void WebPage::sendEvent(const QString &type, const QVariant &arg1, const QVariant &arg2, const QString &mouseButton)
 {
-    // keyboard events
-    if (type == "keydown" || type == "keyup") {
+    // Normalize the event "type" to lowercase
+    const QString eventType = type.toLower();
+
+    // single keyboard events
+    if (eventType == "keydown" || eventType == "keyup") {
         QKeyEvent::Type keyEventType = QEvent::None;
-        if (type == "keydown")
+        if (eventType == "keydown")
             keyEventType = QKeyEvent::KeyPress;
-        if (type == "keyup")
+        if (eventType == "keyup")
             keyEventType = QKeyEvent::KeyRelease;
         Q_ASSERT(keyEventType != QEvent::None);
 
@@ -973,7 +1049,8 @@ void WebPage::sendEvent(const QString &type, const QVariant &arg1, const QVarian
         return;
     }
 
-    if (type == "keypress") {
+    // sequence of key events: will generate all the single keydown/keyup events
+    if (eventType == "keypress") {
         if (arg1.type() == QVariant::String) {
             // this is the case for e.g. sendEvent("...", 'A')
             // but also works with sendEvent("...", "ABCD")
@@ -990,33 +1067,58 @@ void WebPage::sendEvent(const QString &type, const QVariant &arg1, const QVarian
     }
 
     // mouse events
-    if (type == "mousedown" || type == "mouseup" || type == "mousemove") {
-        QMouseEvent::Type eventType = QEvent::None;
-        Qt::MouseButton button = Qt::LeftButton;
-        Qt::MouseButtons buttons = Qt::LeftButton;
+    if (eventType == "mousedown" ||
+            eventType == "mouseup" ||
+            eventType == "mousemove" ||
+            eventType == "doubleclick") {
+        QMouseEvent::Type mouseEventType = QEvent::None;
 
-        if (type == "mousedown")
-            eventType = QEvent::MouseButtonPress;
-        if (type == "mouseup")
-            eventType = QEvent::MouseButtonRelease;
-        if (type == "mousemove") {
-            eventType = QEvent::MouseMove;
+        // Which mouse button (if it's a click)
+        Qt::MouseButton button = Qt::LeftButton;
+        Qt::MouseButton buttons = Qt::LeftButton;
+        if (mouseButton.toLower() == "middle") {
+            button = Qt::MiddleButton;
+            buttons = Qt::MiddleButton;
+        } else if (mouseButton.toLower() == "right") {
+            button = Qt::RightButton;
+            buttons = Qt::RightButton;
+        }
+
+        // Which mouse event
+        if (eventType == "mousedown") {
+            mouseEventType = QEvent::MouseButtonPress;
+        } else if (eventType == "mouseup") {
+            mouseEventType = QEvent::MouseButtonRelease;
+        } else if (eventType == "doubleclick") {
+            mouseEventType = QEvent::MouseButtonDblClick;
+        } else if (eventType == "mousemove") {
+            mouseEventType = QEvent::MouseMove;
             button = Qt::NoButton;
             buttons = Qt::NoButton;
         }
-        Q_ASSERT(eventType != QEvent::None);
+        Q_ASSERT(mouseEventType != QEvent::None);
 
-        int x = arg1.toInt();
-        int y = arg2.toInt();
-        QMouseEvent *event = new QMouseEvent(eventType, QPoint(x, y), button, buttons, Qt::NoModifier);
+        // Gather coordinates
+        if (arg1.isValid() && arg2.isValid()) {
+            m_mousePos.setX(arg1.toInt());
+            m_mousePos.setY(arg2.toInt());
+        }
+
+        // Prepare the Mouse event (no modifiers or other buttons are supported for now)
+        qDebug() << "Mouse Event:" << eventType << "(" << mouseEventType << ")" << m_mousePos << ")" << button << buttons;
+        QMouseEvent *event = new QMouseEvent(mouseEventType, m_mousePos, button, buttons, Qt::NoModifier);
+
+        // Post and process events
         QApplication::postEvent(m_customWebPage, event);
         QApplication::processEvents();
         return;
     }
 
+    // mouse click events: Qt doesn't provide this as a separate events,
+    // so we compose it with a mousedown/mouseup sequence
     if (type == "click") {
-        sendEvent("mousedown", arg1, arg2);
-        sendEvent("mouseup", arg1, arg2);
+        sendEvent("mousedown", arg1, arg2, mouseButton);
+        sendEvent("mouseup", arg1, arg2, mouseButton);
         return;
     }
 }
@@ -1053,9 +1155,19 @@ QObject *WebPage::getPage(const QString &windowName) const
     return NULL;
 }
 
+bool WebPage::ownsPages() const
+{
+    return m_ownsPages;
+}
+
+void WebPage::setOwnsPages(const bool owns)
+{
+    m_ownsPages = owns;
+}
+
 int WebPage::framesCount() const
 {
-    return m_customWebPage->currentFrame()->childFrames().count();
+    return m_currentFrame->childFrames().count();
 }
 
 int WebPage::childFramesCount() const //< deprecated
@@ -1067,7 +1179,7 @@ QStringList WebPage::framesName() const
 {
     QStringList framesName;
 
-    foreach(QWebFrame *f, m_customWebPage->currentFrame()->childFrames()) {
+    foreach(QWebFrame *f, m_currentFrame->childFrames()) {
         framesName << f->frameName();
     }
     return framesName;
@@ -1078,11 +1190,16 @@ QStringList WebPage::childFramesName() const //< deprecated
     return this->framesName();
 }
 
+void WebPage::changeCurrentFrame(QWebFrame * const frame)
+{
+  m_currentFrame = frame;
+}
+
 bool WebPage::switchToFrame(const QString &frameName)
 {
-    foreach(QWebFrame * f, m_customWebPage->currentFrame()->childFrames()) {
+    foreach(QWebFrame * f, m_currentFrame->childFrames()) {
         if (f->frameName() == frameName) {
-            f->setFocus();
+            this->changeCurrentFrame(f);
             return true;
         }
     }
@@ -1096,9 +1213,9 @@ bool WebPage::switchToChildFrame(const QString &frameName) //< deprecated
 
 bool WebPage::switchToFrame(const int framePosition)
 {
-    QList<QWebFrame *> childFrames = m_customWebPage->currentFrame()->childFrames();
+    QList<QWebFrame *> childFrames = m_currentFrame->childFrames();
     if (framePosition >= 0 && framePosition < childFrames.size()) {
-        childFrames.at(framePosition)->setFocus();
+        this->changeCurrentFrame(childFrames.at(framePosition));
         return true;
     }
     return false;
@@ -1111,26 +1228,48 @@ bool WebPage::switchToChildFrame(const int framePosition) //< deprecated
 
 void WebPage::switchToMainFrame()
 {
-    m_mainFrame->setFocus();
+    this->changeCurrentFrame(m_mainFrame);
 }
 
 bool WebPage::switchToParentFrame()
 {
-    if (m_customWebPage->currentFrame()->parentFrame() != NULL) {
-        m_customWebPage->currentFrame()->parentFrame()->setFocus();
+    if (m_currentFrame->parentFrame() != NULL) {
+        this->changeCurrentFrame(m_currentFrame->parentFrame());
         return true;
     }
     return false;
 }
 
+void WebPage::switchToFocusedFrame()
+{
+    this->changeCurrentFrame(m_customWebPage->currentFrame());
+}
+
 QString WebPage::frameName() const
 {
-    return m_customWebPage->currentFrame()->frameName();
+    return m_currentFrame->frameName();
 }
 
 QString WebPage::currentFrameName() const //< deprecated
 {
     return this->frameName();
+}
+
+QString WebPage::focusedFrameName() const
+{
+    return m_customWebPage->currentFrame()->frameName();
+}
+
+static void injectCallbacksObjIntoFrames(QWebFrame *frame, WebpageCallbacks *callbacksObject)
+{
+    // Decorate the window object in this frame
+    frame->addToJavaScriptWindowObject(CALLBACKS_OBJECT_NAME, callbacksObject, QScriptEngine::QtOwnership);
+    frame->evaluateJavaScript(CALLBACKS_OBJECT_INJECTION);
+
+    // Decorate the window object in the child frames (recursively)
+    foreach (QWebFrame *childFrame, frame->childFrames()) {
+        injectCallbacksObjIntoFrames(childFrame, callbacksObject);
+    }
 }
 
 void WebPage::handleJavaScriptWindowObjectCleared()
@@ -1143,15 +1282,8 @@ void WebPage::handleJavaScriptWindowObjectCleared()
     // Reset focus on the Main Frame
     m_mainFrame->setFocus();
 
-    // Decorate the window object in the Main Frame
-    m_mainFrame->addToJavaScriptWindowObject(CALLBACKS_OBJECT_NAME, m_callbacks, QScriptEngine::QtOwnership);
-    m_mainFrame->evaluateJavaScript(CALLBACKS_OBJECT_INJECTION);
-
-    // Decorate the window object in the Main Frame's Child Frames
-    foreach (QWebFrame *childFrame, m_mainFrame->childFrames()) {
-        childFrame->addToJavaScriptWindowObject(CALLBACKS_OBJECT_NAME, m_callbacks, QScriptEngine::QtOwnership);
-        childFrame->evaluateJavaScript(CALLBACKS_OBJECT_INJECTION);
-    }
+    // Inject the Callbacks object in the frame and child-frames (recursively)
+    injectCallbacksObjIntoFrames(m_mainFrame, m_callbacks);
 }
 
 void WebPage::initCompletions()
@@ -1163,6 +1295,14 @@ void WebPage::initCompletions()
     addCompletion("libraryPath");
     addCompletion("settings");
     addCompletion("viewportSize");
+    addCompletion("ownsPages");
+    addCompletion("windowName");
+    addCompletion("pages");
+    addCompletion("pagesWindowName");
+    addCompletion("frameName");
+    addCompletion("framesName");
+    addCompletion("framesCount");
+    addCompletion("cookies");
     // functions
     addCompletion("evaluate");
     addCompletion("includeJs");
@@ -1170,17 +1310,17 @@ void WebPage::initCompletions()
     addCompletion("open");
     addCompletion("release");
     addCompletion("render");
+    addCompletion("renderBase64");
     addCompletion("sendEvent");
     addCompletion("uploadFile");
-    addCompletion("renderBase64");
-    addCompletion("childPages");
-    addCompletion("childPagesCount");
-    addCompletion("childFramesCount");
-    addCompletion("childFramesName");
-    addCompletion("switchToChildFrame");
+    addCompletion("getPage");
+    addCompletion("switchToFrame");
     addCompletion("switchToMainFrame");
     addCompletion("switchToParentFrame");
-    addCompletion("currentFrameName");
+    addCompletion("switchToFocusedFrame");
+    addCompletion("addCookie");
+    addCompletion("deleteCookie");
+    addCompletion("clearCookies");
     // callbacks
     addCompletion("onAlert");
     addCompletion("onCallback");
@@ -1195,7 +1335,8 @@ void WebPage::initCompletions()
     addCompletion("onUrlChanged");
     addCompletion("onNavigationRequested");
     addCompletion("onError");
-    addCompletion("onChildPageCreated");
+    addCompletion("onPageCreated");
+    addCompletion("onClosing");
 }
 
 #include "webpage.moc"

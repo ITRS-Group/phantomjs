@@ -39,7 +39,9 @@
 #include <QSslKey>
 #include <QSslConfiguration>
 #include <QDebug>
+#include <QSslSocket>
 
+#include "phantom.h"
 #include "config.h"
 #include "cookiejar.h"
 #include "networkaccessmanager.h"
@@ -78,9 +80,7 @@ NetworkAccessManager::NetworkAccessManager(QObject *parent, const Config *config
     , m_idCounter(0)
     , m_networkDiskCache(0)
 {
-    if (!config->cookiesFile().isEmpty()) {
-        setCookieJar(new CookieJar(config->cookiesFile()));
-    }
+    setCookieJar(CookieJar::instance());
 
     if (config->diskCacheEnabled()) {
         m_networkDiskCache = new QNetworkDiskCache(this);
@@ -148,21 +148,26 @@ QVariantMap NetworkAccessManager::customHeaders() const
     return m_customHeaders;
 }
 
-void NetworkAccessManager::setCookies(const QVariantList &cookies)
+void NetworkAccessManager::setCookieJar(QNetworkCookieJar *cookieJar)
 {
-    m_cookies = cookies;
-}
-
-QVariantList NetworkAccessManager::cookies() const
-{
-    return m_cookies;
+    QNetworkAccessManager::setCookieJar(cookieJar);
+    // Remove NetworkAccessManager's ownership of this CookieJar and
+    // pass it to the PhantomJS Singleton object.
+    // CookieJar is a SINGLETON, shouldn't be deleted when
+    // the NetworkAccessManager is deleted but only when we shutdown.
+    cookieJar->setParent(Phantom::instance());
 }
 
 // protected:
 QNetworkReply *NetworkAccessManager::createRequest(Operation op, const QNetworkRequest & request, QIODevice * outgoingData)
 {
     QNetworkRequest req(request);
-	
+
+    if (!QSslSocket::supportsSsl()) {
+        if (req.url().scheme().toLower() == QLatin1String("https"))
+            qWarning() << "Request using https scheme without SSL support";
+    }
+
     // Get the URL string before calling the superclass. Seems to work around
     // segfaults in Qt 4.8: https://gist.github.com/1430393
     QByteArray url = req.url().toEncoded();
@@ -182,25 +187,6 @@ QNetworkReply *NetworkAccessManager::createRequest(Operation op, const QNetworkR
         ++i;
     }
 
-    // set HTTP cookies
-    QList<QNetworkCookie> cookieList;
-    for (int i = 0; i < m_cookies.size(); ++i) {
-        QNetworkCookie nc;
-        QVariantMap cookie = m_cookies.at(i).toMap();
-        nc.setDomain(cookie.value("domain").toString());
-        nc.setName(cookie.value("name").toByteArray());
-        nc.setValue(cookie.value("value").toByteArray());
-        if (!cookie.value("path").isNull()) { nc.setPath(cookie.value("path").toString()); }
-        if (!cookie.value("expires").isNull()) { nc.setExpirationDate(cookie.value("expires").toDateTime()); }
-        if (!cookie.value("httponly").isNull()) { nc.setHttpOnly(cookie.value("httponly").toBool()); }
-        if (!cookie.value("secure").isNull()) { nc.setSecure(cookie.value("secure").toBool()); }
-        cookieList.append(nc);
-    }
-    if (m_cookies.size() > 0) {
-        QNetworkCookieJar* cookiejar = cookieJar();
-        cookiejar->setCookiesFromUrl(cookieList, req.url());
-    }
-    
     // set SSL configuration
     req.setSslConfiguration(m_sslConfiguration);
 
