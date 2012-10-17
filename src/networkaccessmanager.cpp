@@ -94,31 +94,38 @@ NetworkAccessManager::NetworkAccessManager(QObject *parent, const Config *config
     m_sslConfiguration.setCaCertificates( QSslSocket::defaultCaCertificates() );
    
     if( !config->localCertificateFile().isEmpty() ){
-       QCA::ConvertResult convRes;
-       QCA::SecureArray passPhrase(config->localCertificatePassPhrase().toAscii());
-       QCA::KeyBundle kb = QCA::KeyBundle::fromFile(config->localCertificateFile(), passPhrase, &convRes);
-       if( kb.isNull() ) { 
-           // emit error in request
-           Terminal::instance()->cout("Cannot read certificate file: " + config->localCertificateFile());
+       
+       // check if certificate file is present
+       QFile f(config->localCertificateFile());
+       if (!f.exists()) {
+           Terminal::instance()->cerr("Unable to open certificate file: \"" + config->localCertificateFile() + "\"");
        } else {
-           if ( convRes != QCA::ConvertGood ) {
-              // emit error
-              Terminal::instance()->cout("Invalid certificate file.");
+           QCA::ConvertResult convRes;
+           QCA::SecureArray passPhrase(config->localCertificatePassPhrase().toAscii());
+           QCA::KeyBundle kb = QCA::KeyBundle::fromFile(config->localCertificateFile(), passPhrase, &convRes);
+           if( kb.isNull() ) { 
+               // emit error in request
+               Terminal::instance()->cout("Cannot read certificate file: " + config->localCertificateFile());
            } else {
-              QCA::CertificateChain certChain = kb.certificateChain();
-              QCA::Certificate certFirst = certChain.primary();
-              QSslCertificate localCert = QSslCertificate( certFirst.toPEM().toAscii() );
-              if ( localCert.isValid() ) {
-                 m_sslConfiguration.setLocalCertificate( localCert );
-                 if( !kb.privateKey().isNull() ) {
-                    QSslKey privateKey(kb.privateKey().toPEM().toAscii(), QSsl::Rsa);
-	            m_sslConfiguration.setPrivateKey(privateKey);
-                    m_sslConfiguration.setProtocol(QSsl::SslV3);  
-		    m_sslConfiguration.setPeerVerifyMode(QSslSocket::VerifyPeer);
-                 }
-              } else {
-                  Terminal::instance()->cout("Personal certificate file is invalid.");
-	      }
+               if ( convRes != QCA::ConvertGood ) {
+                  // emit error
+                  Terminal::instance()->cout("Invalid certificate file.");
+               } else {
+                  QCA::CertificateChain certChain = kb.certificateChain();
+                  QCA::Certificate certFirst = certChain.primary();
+                  QSslCertificate localCert = QSslCertificate( certFirst.toPEM().toAscii() );
+                  if ( localCert.isValid() ) {
+                     m_sslConfiguration.setLocalCertificate( localCert );
+                     if( !kb.privateKey().isNull() ) {
+                        QSslKey privateKey(kb.privateKey().toPEM().toAscii(), QSsl::Rsa);
+                        m_sslConfiguration.setPrivateKey(privateKey);
+                        m_sslConfiguration.setProtocol(QSsl::SslV3);  
+                        m_sslConfiguration.setPeerVerifyMode(QSslSocket::VerifyPeer);
+                     }
+                  } else {
+                      Terminal::instance()->cout("Personal certificate file is invalid.");
+                  }
+               }
            }
        }
     }
