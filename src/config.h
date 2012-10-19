@@ -205,7 +205,7 @@ private:
     bool m_helpFlag;
     bool m_printDebugMessages;
     QString m_proxyAutoConfig;
-    QString m_certAuthoritesPath;
+    QString m_certAuthoritiesPath;
     bool m_javascriptCanOpenWindows;
     bool m_javascriptCanCloseWindows;
     QString m_localCertFile;

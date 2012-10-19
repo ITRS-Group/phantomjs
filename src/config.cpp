@@ -514,25 +514,32 @@ QString Config::proxyAutoConfig() const
 
 QString Config::certAuthoritiesPath() const
 {
-    return m_certAuthoritesPath;
+    return m_certAuthoritiesPath;
 }
 
 void Config::setCertAuthoritiesPath(const QString &dirPath)
 {
-    m_certAuthoritesPath = dirPath;
-    QList<QSslCertificate> cacerts;
-    QDir dir(m_certAuthoritesPath);
+    m_certAuthoritiesPath = dirPath.trimmed();
 
-    if (dir.exists()) 
+    if(!m_certAuthoritiesPath.isEmpty())
     {
-       QDir::Filters dirFilter = QDir::NoDotAndDotDot | QDir::System | QDir::Hidden | QDir::AllDirs | QDir::Files;
-       foreach(QFileInfo info, dir.entryInfoList(dirFilter, QDir::DirsFirst)) 
-       {
-           cacerts += QSslCertificate::fromPath(info.absoluteFilePath());
-       }
-    }
+        QList<QSslCertificate> cacerts;
+        QDir dir(m_certAuthoritiesPath);
 
-    QSslSocket::setDefaultCaCertificates(cacerts);
+        if (dir.exists()) 
+        {
+            QDir::Filters dirFilter = QDir::NoDotAndDotDot | QDir::System | QDir::Hidden | QDir::AllDirs | QDir::Files;
+            foreach(QFileInfo info, dir.entryInfoList(dirFilter, QDir::DirsFirst)) 
+            {
+                cacerts += QSslCertificate::fromPath(info.absoluteFilePath());
+            }
+            QSslSocket::setDefaultCaCertificates(cacerts);
+        }
+    }
+    else
+    {
+        Terminal::instance()->cerr("Unable to load certificates.");
+    }
 }
 
 void Config::setLocalCertificateFile(const QString &value)
