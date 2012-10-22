@@ -26,7 +26,7 @@ HEADERS += csconverter.h \
     config.h \
     repl.h \
     replcompletable.h \
-    EUEMProxy.h
+    networkproxyautoconfig.h
 
 SOURCES += phantom.cpp \
     callback.cpp \
@@ -45,7 +45,7 @@ SOURCES += phantom.cpp \
     config.cpp \
     repl.cpp \
     replcompletable.cpp \
-    EUEMProxy.cpp
+    networkproxyautoconfig.cpp
 
 OTHER_FILES += \
     bootstrap.js \

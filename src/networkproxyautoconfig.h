@@ -1,5 +1,5 @@
-#ifndef EUEM_PROXY_H_7E83DFB1_54E9_4DAA_BAF5_8B9D79933814
-#define EUEM_PROXY_H_7E83DFB1_54E9_4DAA_BAF5_8B9D79933814
+#ifndef NETWORK_PROXY_AUTO_CONFIG_H_7E83DFB1_54E9_4DAA_BAF5_8B9D79933814
+#define NETWORK_PROXY_AUTO_CONFIG_H_7E83DFB1_54E9_4DAA_BAF5_8B9D79933814
 
 #include <QtNetwork/QNetworkAccessManager>
 #include <QNetworkProxyQuery>
@@ -7,12 +7,12 @@
 #include <QWebPage>
 #include <QVariant>
 
-class EUEMDownloader : public QObject
+class NetworkProxyAutoConfigDownloader : public QObject
 {
     Q_OBJECT
 public:
-    EUEMDownloader();
-    ~EUEMDownloader();
+    NetworkProxyAutoConfigDownloader();
+    ~NetworkProxyAutoConfigDownloader();
 
     /**
      * fetches a resource
@@ -25,7 +25,7 @@ private:
     QNetworkAccessManager* manager_;
 };
 
-class EUEMPac : public QObject
+class NetworkProxyAutoConfig : public QObject
 {
     Q_OBJECT
 public:
@@ -33,8 +33,8 @@ public:
      *  constructor
      *  @param  script      proxy auto config script (contents, not path)
      */
-    EUEMPac(QString const & script);
-    ~EUEMPac();
+    NetworkProxyAutoConfig(QString const & script);
+    ~NetworkProxyAutoConfig();
 
     /**
      *  @brief: runs the proxy auto config file
@@ -57,12 +57,12 @@ private:
     QString pacScript_;
     QWebPage* page_;
 };
-
-class EUEMProxyFactory : public QNetworkProxyFactory
+      
+class NetworkProxyAutoConfigFactory : public QNetworkProxyFactory
 {
 public:
-    EUEMProxyFactory();
-    ~EUEMProxyFactory();
+    NetworkProxyAutoConfigFactory();
+    ~NetworkProxyAutoConfigFactory();
 
     void setProxyAutoConfig(QString const & url);
     virtual QList<QNetworkProxy> queryProxy(const QNetworkProxyQuery & query);
@@ -88,10 +88,10 @@ public:
     }
 
 private:
-    EUEMPac* pac_;
+    NetworkProxyAutoConfig* pac_;
     QString user_;
     QString password_;
 };
 
-#endif // EUEM_PROXY_H_7E83DFB1_54E9_4DAA_BAF5_8B9D79933814
+#endif // NETWORK_PROXY_AUTO_CONFIG_H_7E83DFB1_54E9_4DAA_BAF5_8B9D79933814
 

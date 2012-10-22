@@ -46,7 +46,7 @@
 #include "callback.h"
 #include "cookiejar.h"
 
-#include "EUEMProxy.h"
+#include "networkproxyautoconfig.h"
 
 static Phantom *phantomInstance = NULL;
 
@@ -99,7 +99,7 @@ void Phantom::init()
 
     if (!m_config.proxyAutoConfig().isEmpty())
     {
-        EUEMProxyFactory* pf(new EUEMProxyFactory());
+        NetworkProxyAutoConfigFactory* pf(new NetworkProxyAutoConfigFactory());
         pf->setProxyAutoConfig(m_config.proxyAutoConfig());
         if(!m_config.proxyAuthUser().isEmpty() && !m_config.proxyAuthPass().isEmpty()) 
         {

@@ -1,4 +1,4 @@
-#include "EUEMProxy.h"
+#include "networkproxyautoconfig.h"
 
 #include <iostream>
 #include <QTimer>
@@ -13,21 +13,21 @@
 #include <cassert>
 
 ////////////////////////////////////////////////////////////////////////////////
-//                               EUEMDownloader
+//                               NetworkProxyAutoConfigDownloader
 ////////////////////////////////////////////////////////////////////////////////
 
-EUEMDownloader::EUEMDownloader()
+NetworkProxyAutoConfigDownloader::NetworkProxyAutoConfigDownloader()
   : manager_( 0 )
 {
     manager_ = new QNetworkAccessManager(this);
 }
 
-EUEMDownloader::~EUEMDownloader()
+NetworkProxyAutoConfigDownloader::~NetworkProxyAutoConfigDownloader()
 {
     delete manager_;
 }
 
-QString EUEMDownloader::get(QUrl const & url, unsigned int timeout )
+QString NetworkProxyAutoConfigDownloader::get(QUrl const & url, unsigned int timeout )
 {
     QNetworkRequest const request(url);
     QEventLoop loop;
@@ -44,10 +44,10 @@ QString EUEMDownloader::get(QUrl const & url, unsigned int timeout )
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//                                  EUEMPac
+//                                  NetworkProxyAutoConfig
 ////////////////////////////////////////////////////////////////////////////////
 
-EUEMPac::EUEMPac(QString const & script)
+NetworkProxyAutoConfig::NetworkProxyAutoConfig(QString const & script)
   : pacScript_(script)
   , page_(new QWebPage())
 {
@@ -57,12 +57,12 @@ EUEMPac::EUEMPac(QString const & script)
              SLOT(onCreateObjects()));
 }
 
-EUEMPac::~EUEMPac()
+NetworkProxyAutoConfig::~NetworkProxyAutoConfig()
 {
     page_->deleteLater();
 }
 
-void EUEMPac::onCreateObjects()
+void NetworkProxyAutoConfig::onCreateObjects()
 {
     QWebFrame * const frame = page_->mainFrame();
     frame->addToJavaScriptWindowObject("autoproxy", this);
@@ -81,14 +81,14 @@ void EUEMPac::onCreateObjects()
     frame->evaluateJavaScript(callbacks);
 }
 
-QString EUEMPac::eval(QString const & url, QString const & host)
+QString NetworkProxyAutoConfig::eval(QString const & url, QString const & host)
 {
     QString cmd;
     QTextStream(&cmd) << "FindProxyForURL('" << url << "','" << host << "');";
     return page_->mainFrame()->evaluateJavaScript(cmd).toString();
 }
 
-bool EUEMPac::isInNet(QVariantList args)
+bool NetworkProxyAutoConfig::isInNet(QVariantList args)
 {
     QString host = args[0].toString();
     QHostInfo info = QHostInfo::fromName(host);
@@ -106,12 +106,12 @@ bool EUEMPac::isInNet(QVariantList args)
     }
 }
 
-bool EUEMPac::isPlainHostName(const QString &host)
+bool NetworkProxyAutoConfig::isPlainHostName(const QString &host)
 {
     return !host.contains(".");
 }
 
-QString EUEMPac::dnsResolve(const QString &host)
+QString NetworkProxyAutoConfig::dnsResolve(const QString &host)
 {
     QHostInfo info = QHostInfo::fromName( host );
     QList<QHostAddress> addresses = info.addresses();
@@ -124,7 +124,7 @@ QString EUEMPac::dnsResolve(const QString &host)
     return addresses.first().toString();
 }
 
-QString EUEMPac::myIpAddress()
+QString NetworkProxyAutoConfig::myIpAddress()
 {
     foreach ( QHostAddress address, QNetworkInterface::allAddresses() )
     {
@@ -143,18 +143,18 @@ QString EUEMPac::myIpAddress()
     return NULL;
 }
 
-bool EUEMPac::shExpMatch(const QString &str, const QString &shexp)
+bool NetworkProxyAutoConfig::shExpMatch(const QString &str, const QString &shexp)
 {
     QRegExp re( shexp, Qt::CaseSensitive, QRegExp::Wildcard );
     return re.exactMatch( str );
 }
 
-bool EUEMPac::dnsDomainIs(const QString &host, const QString &domain)
+bool NetworkProxyAutoConfig::dnsDomainIs(const QString &host, const QString &domain)
 {
     return host.endsWith( domain );
 }
 
-bool EUEMPac::localHostOrDomainIs(const QString &host, const QString &hostdom)
+bool NetworkProxyAutoConfig::localHostOrDomainIs(const QString &host, const QString &hostdom)
 {
     // Check for Exact Match
     if( host == hostdom )
@@ -166,31 +166,31 @@ bool EUEMPac::localHostOrDomainIs(const QString &host, const QString &hostdom)
     return hostdom.startsWith( host + "." );
 }
 
-bool EUEMPac::isResolvable(const QString &host)
+bool NetworkProxyAutoConfig::isResolvable(const QString &host)
 {
     return dnsResolve(host) != NULL;
 }
 
-EUEMProxyFactory::EUEMProxyFactory()
+NetworkProxyAutoConfigFactory::NetworkProxyAutoConfigFactory()
   : pac_( 0 )
 {
 }
 
-EUEMProxyFactory::~EUEMProxyFactory()
+NetworkProxyAutoConfigFactory::~NetworkProxyAutoConfigFactory()
 {
     delete pac_;
 }
 
-void EUEMProxyFactory::setProxyAutoConfig(QString const & url)
+void NetworkProxyAutoConfigFactory::setProxyAutoConfig(QString const & url)
 {
-    EUEMDownloader dl;
+    NetworkProxyAutoConfigDownloader dl;
 
     // 10-second timeout for downloads, in case we're given the wrong url
     //
     QString script = dl.get(QUrl(url), 10 * 1000).trimmed();
     if( !script.isEmpty() )
     {
-        EUEMPac* tmp( new EUEMPac( script ));
+        NetworkProxyAutoConfig* tmp( new NetworkProxyAutoConfig( script ));
         std::swap(pac_, tmp);
         delete tmp;
     }
@@ -219,7 +219,7 @@ static void addProxy(
     proxyList.append( QNetworkProxy( type, host, port, user, password ));
 }
 
-QList<QNetworkProxy> EUEMProxyFactory::queryProxy(const QNetworkProxyQuery& query)
+QList<QNetworkProxy> NetworkProxyAutoConfigFactory::queryProxy(const QNetworkProxyQuery& query)
 {
     QList<QNetworkProxy> proxyList;
     if( pac_ )
