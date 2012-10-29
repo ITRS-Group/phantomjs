@@ -97,8 +97,8 @@ win32-g++* {
     QMAKE_LIBDIR_POST += $$split(TMPPATH,";")
 }
 
-CONFIG -= warn_on
-*-g++*:QMAKE_CXXFLAGS += -Wall -Wextra -Wreturn-type -fno-strict-aliasing -Wcast-align -Wchar-subscripts -Wformat-security -Wreturn-type -Wno-unused-parameter -Wno-sign-compare -Wno-switch -Wno-switch-enum -Wundef -Wmissing-noreturn -Winit-self
+CONFIG += warn_off
+#*-g++*:QMAKE_CXXFLAGS += -Wall -Wextra -Wreturn-type -fno-strict-aliasing -Wcast-align -Wchar-subscripts -Wformat-security -Wreturn-type -Wno-unused-parameter -Wno-sign-compare -Wno-switch -Wno-switch-enum -Wundef -Wmissing-noreturn -Winit-self
 
 # Treat warnings as errors on x86/Linux/GCC
 linux-g++* {

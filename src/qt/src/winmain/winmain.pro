@@ -4,7 +4,7 @@ TARGET	 = qtmain
 DESTDIR	 = $$QMAKE_LIBDIR_QT
 QT       =
 
-CONFIG	+= staticlib warn_on
+CONFIG	+= staticlib warn_off
 CONFIG	-= qt shared
 
 win32 {
